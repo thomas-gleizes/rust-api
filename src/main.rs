@@ -1,9 +1,16 @@
 #[macro_use]
 extern crate rocket;
+extern crate diesel;
 
-use self::models::*;
-use diesel::prelude::*;
-use rust_api::*;
+mod connection;
+mod post;
+mod schema;
+
+use crate::connection::Connection;
+use crate::post::Post;
+use rocket::fairing::AdHoc;
+use rocket::serde::json::Json;
+use rocket::Config;
 
 #[get("/")]
 fn index() -> &'static str {
@@ -11,22 +18,36 @@ fn index() -> &'static str {
 }
 
 #[get("/posts")]
-async fn show_posts() -> String {
-  use self::schema::posts::dsl::*;
+async fn show_posts(connection: Connection) -> String {
+  Post::create(
+    Post {
+      id: 1,
+      title: "title 1".to_string(),
+      body: "content of posts".to_string(),
+      posted: false,
+    },
+    &connection,
+  );
 
-  let connection = &mut establish_connection();
-  let results = posts
-    .select((id, title, content, posted_at))
-    .load::<Post>(&connection)
-    .expect("Error loading posts");
+  return "marche pas".to_string();
+}
 
-  return format!("posts posted : {}", results.len());
+#[get("/posts/<post_id>")]
+fn show_post(post_id: i32) -> Json<Post> {
+  return Json(Post {
+    id: post_id,
+    title: "title 1".to_string(),
+    body: "content of posts".to_string(),
+    posted: false,
+  });
 }
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
   let _rocket = rocket::build()
-    .mount("/api", routes![index, show_posts])
+    .attach(Connection::fairing())
+    .attach(AdHoc::config::<Config>())
+    .mount("/api", routes![index, show_posts, show_post])
     .launch()
     .await?;
 
